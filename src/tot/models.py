@@ -1,6 +1,7 @@
 import os
 import openai
 import backoff 
+import requests
 
 completion_tokens = prompt_tokens = 0
 
@@ -15,10 +16,14 @@ if api_base != "":
     print("Warning: OPENAI_API_BASE is set to {}".format(api_base))
     openai.api_base = api_base
 
-@backoff.on_exception(backoff.expo, openai.error.OpenAIError)
+@backoff.on_exception(backoff.expo, (openai.error.OpenAIError, requests.exceptions.RequestException), max_tries=8)
 def completions_with_backoff(**kwargs):
-    return openai.ChatCompletion.create(**kwargs)
-
+    try:
+        return openai.ChatCompletion.create(**kwargs)
+    except Exception as e:
+        print("Error during API call: %s", e)
+        raise
+    
 def gpt(prompt, model="gpt-4", temperature=0.7, max_tokens=1000, n=1, stop=None) -> list:
     messages = [{"role": "user", "content": prompt}]
     return chatgpt(messages, model=model, temperature=temperature, max_tokens=max_tokens, n=n, stop=stop)
@@ -40,6 +45,8 @@ def gpt_usage(backend="gpt-4"):
     global completion_tokens, prompt_tokens
     if backend == "gpt-4":
         cost = completion_tokens / 1000 * 0.06 + prompt_tokens / 1000 * 0.03
-    elif backend == "gpt-3.5-turbo":
-        cost = completion_tokens / 1000 * 0.002 + prompt_tokens / 1000 * 0.0015
+    elif backend == "gpt-4-0125-preview":
+        cost = completion_tokens / 1000 * 0.03 + prompt_tokens / 1000 * 0.01
+    elif backend == "gpt-3.5-turbo-0125":
+        cost = completion_tokens / 1000 * 0.0015  + prompt_tokens / 1000 * 0.0005
     return {"completion_tokens": completion_tokens, "prompt_tokens": prompt_tokens, "cost": cost}

@@ -33,8 +33,8 @@ def get_votes(task, x, ys, n_evaluate_sample):
 
 def get_proposals(task, x, y): 
     propose_prompt = task.propose_prompt_wrap(x, y)
-    proposals = gpt(propose_prompt, n=1, stop=None)[0].split('\n')
-    return [y + _ + '\n' for _ in proposals]
+    proposals = gpt(propose_prompt, n=1, stop=None)[0].split('\n') ## in a single prompt generate multiple candidates, i.e. next thought each thought is assumed to be seperated by \n 
+    return [y + _ + '\n' for _ in proposals] ## append each though to the path, again assumed to be seperated by \n
 
 def get_samples(task, x, y, n_generate_sample, prompt_sample, stop):
     if prompt_sample == 'standard':
@@ -50,16 +50,17 @@ def solve(args, task, idx, to_print=True):
     global gpt
     gpt = partial(gpt, model=args.backend, temperature=args.temperature)
     print(gpt)
-    x = task.get_input(idx)  # input
+    x = task.get_input(idx)  # input instance for this task, settup in tot/tasks
     ys = ['']  # current output candidates
+    # ys are paths in the tree after the root node to the current node represented as strings
     infos = []
-    for step in range(task.steps):
+    for step in range(task.steps): ## depth of BFS defined in tot/tasks
         # generation
         if args.method_generate == 'sample':
             new_ys = [get_samples(task, x, y, args.n_generate_sample, prompt_sample=args.prompt_sample, stop=task.stops[step]) for y in ys]
         elif args.method_generate == 'propose':
-            new_ys = [get_proposals(task, x, y) for y in ys]
-        new_ys = list(itertools.chain(*new_ys))
+            new_ys = [get_proposals(task, x, y) for y in ys] ### list of lists
+        new_ys = list(itertools.chain(*new_ys)) ### flattens into single list
         ids = list(range(len(new_ys)))
         # evaluation
         if args.method_evaluate == 'vote':
